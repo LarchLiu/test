@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101d26">
+  <title>FALL LINE — 俄罗斯方块</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f3f0e6;
+      --muted: #98a8a7;
+      --night: #101d26;
+      --panel: #182832;
+      --line: #31434a;
+      --lime: #d6f36a;
+      --coral: #ff795f;
+      --cyan: #75dce0;
+      font-family: "Avenir Next", Avenir, "Trebuchet MS", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse at 16% 12%, rgba(117, 220, 224, .09), transparent 30rem),
+        radial-gradient(ellipse at 86% 84%, rgba(255, 121, 95, .08), transparent 26rem),
+        repeating-linear-gradient(135deg, transparent 0 22px, rgba(255,255,255,.012) 22px 23px),
+        var(--night);
+    }
+
+    button { font: inherit; }
+
+    .shell {
+      width: min(100% - 36px, 980px);
+      margin: 0 auto;
+      padding: 34px 0 26px;
+    }
+
+    .masthead {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      padding-bottom: 19px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow, .label, .key, .status, .score-value, .control-label {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-transform: uppercase;
+      letter-spacing: .11em;
+    }
+
+    .eyebrow { margin: 0 0 6px; color: var(--lime); font-size: 10px; }
+    h1 { margin: 0; font-size: clamp(26px, 5vw, 39px); line-height: .96; letter-spacing: -.055em; }
+    h1 span { color: var(--coral); }
+    .masthead-note { max-width: 230px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; text-align: right; }
+
+    .game-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px;
+      gap: 20px;
+      align-items: start;
+      width: min(100%, 610px);
+      margin: 27px auto 0;
+    }
+
+    .board-wrap {
+      position: relative;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #43585e;
+      background: linear-gradient(145deg, #20343c, #14232c 58%);
+      box-shadow: 0 18px 50px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.06);
+    }
+
+    .board-topline { display: flex; justify-content: space-between; padding: 0 1px 10px; }
+    .label { color: var(--muted); font-size: 9px; }
+    .status { color: var(--lime); font-size: 9px; }
+    .board-frame { position: relative; background: #0b151c; border: 1px solid #33454c; }
+    canvas { display: block; width: 100%; height: auto; aspect-ratio: 1 / 2; }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      gap: 8px;
+      padding: 24px;
+      text-align: center;
+      background: rgba(9, 18, 24, .78);
+      backdrop-filter: blur(3px);
+      transition: opacity .18s ease;
+    }
+
+    .overlay[hidden] { display: none; }
+    .overlay strong { font-size: clamp(18px, 4vw, 24px); letter-spacing: -.04em; }
+    .overlay span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+    .sidebar { display: grid; gap: 10px; }
+    .card { padding: 14px; border: 1px solid var(--line); background: rgba(24, 40, 50, .82); }
+    .card-heading { display: flex; align-items: center; justify-content: space-between; margin: 0 0 11px; }
+    .card-heading .label { margin: 0; }
+    .score-card { min-height: 93px; }
+    .score-value { display: block; color: var(--lime); font-size: 27px; letter-spacing: -.04em; font-weight: 700; }
+    .score-caption { display: flex; justify-content: space-between; gap: 10px; margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-row .card { min-height: 69px; padding: 11px; }
+    .stat-number { display: block; margin-top: 8px; font-family: ui-monospace, monospace; font-size: 18px; }
+    .next-pieces { display: grid; gap: 7px; }
+    .next-piece { display: grid; place-items: center; height: 43px; background: rgba(7, 17, 22, .52); border: 1px solid rgba(255,255,255,.04); }
+    .next-piece canvas { width: 90px; height: 38px; aspect-ratio: auto; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .action {
+      min-height: 39px;
+      color: var(--ink);
+      border: 1px solid #4a5d62;
+      background: #21353c;
+      cursor: pointer;
+      transition: background .16s ease, transform .16s ease, border-color .16s ease;
+    }
+    .action:hover { border-color: var(--lime); background: #2a4146; }
+    .action:active { transform: translateY(1px); }
+    .action.primary { grid-column: 1 / -1; color: #172025; border-color: var(--lime); background: var(--lime); font-weight: 800; }
+    .action.primary:hover { background: #e3ff8b; }
+    .controls { display: grid; gap: 8px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .control-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .key { padding: 3px 5px; color: var(--ink); border: 1px solid #46595d; background: #101d25; font-size: 9px; white-space: nowrap; }
+    .mobile-controls { display: none; }
+    .footer { display: flex; justify-content: space-between; gap: 12px; width: min(100%, 610px); margin: 15px auto 0; color: #718589; font-size: 10px; }
+    .footer span:last-child { text-align: right; }
+
+    @media (max-width: 620px) {
+      .shell { width: min(100% - 24px, 420px); padding-top: 22px; }
+      .masthead { align-items: start; }
+      .masthead-note { max-width: 145px; font-size: 10px; }
+      .game-layout { grid-template-columns: minmax(0, 1fr) 116px; gap: 9px; margin-top: 18px; }
+      .board-wrap { padding: 8px; }
+      .sidebar { gap: 7px; }
+      .card { padding: 10px; }
+      .score-card { min-height: 78px; }
+      .score-value { font-size: 21px; }
+      .score-caption { font-size: 9px; }
+      .stat-row { grid-template-columns: 1fr; gap: 7px; }
+      .stat-row .card { min-height: 53px; padding: 8px 10px; }
+      .stat-number { display: inline; float: right; margin-top: 0; font-size: 15px; }
+      .card-heading { margin-bottom: 7px; }
+      .next-piece { height: 35px; }
+      .next-piece canvas { width: 75px; height: 30px; }
+      .actions { grid-template-columns: 1fr; }
+      .action.primary { grid-column: auto; }
+      .action { min-height: 35px; font-size: 11px; }
+      .controls { display: none; }
+      .mobile-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 9px; }
+      .mobile-controls button { min-height: 39px; color: var(--ink); border: 1px solid #46595d; background: #1b3037; touch-action: none; }
+      .mobile-controls button:active { color: var(--night); background: var(--lime); }
+      .footer { font-size: 9px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">A little arcade for your browser</p>
+        <h1>FALL <span>LINE</span></h1>
+      </div>
+      <p class="masthead-note">排好每一行，给下一块留出空间。<br>准备好就开始。</p>
+    </header>
+
+    <section class="game-layout" aria-label="俄罗斯方块游戏">
+      <div>
+        <div class="board-wrap">
+          <div class="board-topline"><span class="label">Playfield / 10 × 20</span><span id="status" class="status">READY</span></div>
+          <div class="board-frame">
+            <canvas id="board" width="300" height="600" aria-label="游戏区域"></canvas>
+            <div class="overlay" id="overlay">
+              <strong id="overlay-title">准备好了吗？</strong>
+              <span id="overlay-copy">按「开始游戏」或 Enter，开始堆叠。</span>
+            </div>
+          </div>
+        </div>
+        <div class="mobile-controls" aria-label="触屏操作">
+          <button type="button" data-control="left" aria-label="左移">←</button>
+          <button type="button" data-control="rotate" aria-label="旋转">↻</button>
+          <button type="button" data-control="down" aria-label="软降">↓</button>
+          <button type="button" data-control="right" aria-label="右移">→</button>
+        </div>
+      </div>
+
+      <aside class="sidebar" aria-label="游戏信息">
+        <section class="card score-card">
+          <div class="card-heading"><p class="label">Score</p><span class="label">01</span></div>
+          <output class="score-value" id="score">000000</output>
+          <div class="score-caption"><span>BEST</span><span id="best">000000</span></div>
+        </section>
+        <div class="stat-row">
+          <section class="card"><span class="label">Lines</span><output class="stat-number" id="lines">00</output></section>
+          <section class="card"><span class="label">Level</span><output class="stat-number" id="level">01</output></section>
+        </div>
+        <section class="card">
+          <div class="card-heading"><p class="label">Up next</p><span class="label">× 3</span></div>
+          <div class="next-pieces" id="next-pieces" aria-label="接下来的方块"></div>
+        </section>
+        <div class="actions">
+          <button class="action primary" id="start-button" type="button">开始游戏</button>
+          <button class="action" id="pause-button" type="button">暂停 <span class="key">P</span></button>
+          <button class="action" id="restart-button" type="button">重新开始</button>
+        </div>
+        <section class="card controls" aria-label="键盘操作说明">
+          <div class="control-row"><span>移动</span><span class="key">← →</span></div>
+          <div class="control-row"><span>软降 / 硬降</span><span class="key">↓ / SPACE</span></div>
+          <div class="control-row"><span>旋转</span><span class="key">↑ / X</span></div>
+          <div class="control-row"><span>暂停</span><span class="key">P</span></div>
+        </section>
+      </aside>
+    </section>
+
+    <footer class="footer"><span>七种方块 · 三格预览</span><span>无尽模式，直到顶端。</span></footer>
+  </main>
+
+  <script>
+    (() => {
+      const COLS = 10;
+      const ROWS = 20;
+      const CELL = 30;
+      const SHAPES = {
+        I: [[1, 1, 1, 1]],
+        O: [[1, 1], [1, 1]],
+        T: [[0, 1, 0], [1, 1, 1]],
+        S: [[0, 1, 1], [1, 1, 0]],
+        Z: [[1, 1, 0], [0, 1, 1]],
+        J: [[1, 0, 0], [1, 1, 1]],
+        L: [[0, 0, 1], [1, 1, 1]]
+      };
+      const COLORS = {
+        I: '#75dce0', O: '#d6f36a', T: '#c59bff', S: '#91dc86',
+        Z: '#ff795f', J: '#82aaff', L: '#ffb764'
+      };
+
+      const boardCanvas = document.querySelector('#board');
+      const ctx = boardCanvas.getContext('2d');
+      const overlay = document.querySelector('#overlay');
+      const overlayTitle = document.querySelector('#overlay-title');
+      const overlayCopy = document.querySelector('#overlay-copy');
+      const statusEl = document.querySelector('#status');
+      const scoreEl = document.querySelector('#score');
+      const bestEl = document.querySelector('#best');
+      const linesEl = document.querySelector('#lines');
+      const levelEl = document.querySelector('#level');
+      const nextEl = document.querySelector('#next-pieces');
+      const startButton = document.querySelector('#start-button');
+      const pauseButton = document.querySelector('#pause-button');
+      const restartButton = document.querySelector('#restart-button');
+
+      let grid;
+      let queue;
+      let active;
+      let score = 0;
+      let lines = 0;
+      let best = Number(localStorage.getItem('fall-line-best') || 0);
+      let state = 'ready';
+      let lastFrame = 0;
+      let fallTimer = 0;
+
+      const blankGrid = () => Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+      const copyShape = (shape) => shape.map((row) => [...row]);
+      const format = (number, width = 6) => String(number).padStart(width, '0');
+
+      function shuffledBag() {
+        const bag = Object.keys(SHAPES);
+        for (let i = bag.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [bag[i], bag[j]] = [bag[j], bag[i]];
+        }
+        return bag;
+      }
+
+      function fillQueue() {
+        while (queue.length < 7) queue.push(...shuffledBag());
+      }
+
+      function makePiece(type) {
+        const matrix = copyShape(SHAPES[type]);
+        return { type, matrix, x: Math.floor((COLS - matrix[0].length) / 2), y: -matrix.length };
+      }
+
+      function collides(piece, dx = 0, dy = 0, matrix = piece.matrix) {
+        for (let y = 0; y < matrix.length; y += 1) {
+          for (let x = 0; x < matrix[y].length; x += 1) {
+            if (!matrix[y][x]) continue;
+            const nx = piece.x + x + dx;
+            const ny = piece.y + y + dy;
+            if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+            if (ny >= 0 && grid[ny][nx]) return true;
+          }
+        }
+        return false;
+      }
+
+      function rotateMatrix(matrix) {
+        return matrix[0].map((_, x) => matrix.map((row) => row[x]).reverse());
+      }
+
+      function rotate() {
+        if (state !== 'playing') return;
+        const rotated = rotateMatrix(active.matrix);
+        for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [-2, 0], [2, 0], [0, -1]]) {
+          if (!collides(active, dx, dy, rotated)) {
+            active.x += dx;
+            active.y += dy;
+            active.matrix = rotated;
+            draw();
+            return;
+          }
+        }
+      }
+
+      function move(dx, dy, points = 0) {
+        if (state !== 'playing' || collides(active, dx, dy)) return false;
+        active.x += dx;
+        active.y += dy;
+        if (points) addScore(points);
+        draw();
+        return true;
+      }
+
+      function addScore(points) {
+        score += points;
+        scoreEl.value = format(score);
+        scoreEl.textContent = format(score);
+        if (score > best) {
+          best = score;
+          localStorage.setItem('fall-line-best', String(best));
+          bestEl.value = format(best);
+          bestEl.textContent = format(best);
+        }
+      }
+
+      function spawn() {
+        fillQueue();
+        active = makePiece(queue.shift());
+        fillQueue();
+        renderNext();
+        if (collides(active)) finishGame();
+      }
+
+      function lockPiece() {
+        let aboveTop = false;
+        active.matrix.forEach((row, y) => row.forEach((cell, x) => {
+          if (!cell) return;
+          const boardY = active.y + y;
+          if (boardY < 0) aboveTop = true;
+          else grid[boardY][active.x + x] = active.type;
+        }));
+        if (aboveTop) {
+          finishGame();
+          return;
+        }
+        clearRows();
+        spawn();
+        draw();
+      }
+
+      function clearRows() {
+        let cleared = 0;
+        for (let y = ROWS - 1; y >= 0; y -= 1) {
+          if (grid[y].every(Boolean)) {
+            grid.splice(y, 1);
+            grid.unshift(Array(COLS).fill(null));
+            cleared += 1;
+            y += 1;
+          }
+        }
+        if (!cleared) return;
+        const awards = [0, 100, 300, 500, 800];
+        const oldLevel = Math.floor(lines / 10);
+        lines += cleared;
+        const level = Math.floor(lines / 10);
+        addScore(awards[cleared] * (oldLevel + 1));
+        linesEl.value = format(lines, 2);
+        linesEl.textContent = format(lines, 2);
+        levelEl.value = format(level + 1, 2);
+        levelEl.textContent = format(level + 1, 2);
+      }
+
+      function drawCell(context, x, y, type, size, alpha = 1) {
+        const inset = Math.max(1, size * .065);
+        context.globalAlpha = alpha;
+        context.fillStyle = COLORS[type];
+        context.fillRect(x * size + inset, y * size + inset, size - inset * 2, size - inset * 2);
+        context.fillStyle = 'rgba(255,255,255,.22)';
+        context.fillRect(x * size + inset, y * size + inset, size - inset * 2, Math.max(1, size * .09));
+        context.fillStyle = 'rgba(7,18,22,.18)';
+        context.fillRect(x * size + inset, y * size + size - inset - Math.max(1, size * .08), size - inset * 2, Math.max(1, size * .08));
+        context.globalAlpha = 1;
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
+        ctx.fillStyle = '#0b151c';
+        ctx.fillRect(0, 0, boardCanvas.width, boardCanvas.height);
+        ctx.strokeStyle = 'rgba(178, 207, 203, .075)';
+        ctx.lineWidth = 1;
+        for (let x = 1; x < COLS; x += 1) {
+          ctx.beginPath(); ctx.moveTo(x * CELL + .5, 0); ctx.lineTo(x * CELL + .5, ROWS * CELL); ctx.stroke();
+        }
+        for (let y = 1; y < ROWS; y += 1) {
+          ctx.beginPath(); ctx.moveTo(0, y * CELL + .5); ctx.lineTo(COLS * CELL, y * CELL + .5); ctx.stroke();
+        }
+        grid.forEach((row, y) => row.forEach((type, x) => { if (type) drawCell(ctx, x, y, type, CELL); }));
+        if (!active) return;
+        let ghostY = active.y;
+        while (!collides(active, 0, ghostY - active.y + 1)) ghostY += 1;
+        active.matrix.forEach((row, y) => row.forEach((cell, x) => {
+          if (cell && ghostY + y >= 0) drawCell(ctx, active.x + x, ghostY + y, active.type, CELL, .18);
+        }));
+        active.matrix.forEach((row, y) => row.forEach((cell, x) => {
+          if (cell && active.y + y >= 0) drawCell(ctx, active.x + x, active.y + y, active.type, CELL);
+        }));
+      }
+
+      function renderNext() {
+        nextEl.replaceChildren();
+        queue.slice(0, 3).forEach((type) => {
+          const holder = document.createElement('div');
+          holder.className = 'next-piece';
+          const canvas = document.createElement('canvas');
+          canvas.width = 120;
+          canvas.height = 48;
+          canvas.setAttribute('aria-hidden', 'true');
+          holder.append(canvas);
+          nextEl.append(holder);
+          const pieceCtx = canvas.getContext('2d');
+          const matrix = SHAPES[type];
+          const size = 12;
+          const offsetX = (canvas.width - matrix[0].length * size) / 2;
+          const offsetY = (canvas.height - matrix.length * size) / 2;
+          matrix.forEach((row, y) => row.forEach((cell, x) => {
+            if (!cell) return;
+            pieceCtx.save();
+            pieceCtx.translate(offsetX, offsetY);
+            drawCell(pieceCtx, x, y, type, size);
+            pieceCtx.restore();
+          }));
+        });
+      }
+
+      function setOverlay(title, copy, visible) {
+        overlayTitle.textContent = title;
+        overlayCopy.textContent = copy;
+        overlay.hidden = !visible;
+      }
+
+      function startGame() {
+        grid = blankGrid();
+        queue = [];
+        score = 0;
+        lines = 0;
+        scoreEl.value = format(0); scoreEl.textContent = format(0);
+        linesEl.value = format(0, 2); linesEl.textContent = format(0, 2);
+        levelEl.value = format(1, 2); levelEl.textContent = format(1, 2);
+        fillQueue();
+        state = 'playing';
+        statusEl.textContent = 'PLAYING';
+        startButton.textContent = '继续游戏';
+        setOverlay('', '', false);
+        spawn();
+        fallTimer = 0;
+        lastFrame = performance.now();
+        draw();
+      }
+
+      function pauseGame() {
+        if (state === 'playing') {
+          state = 'paused';
+          statusEl.textContent = 'PAUSED';
+          startButton.textContent = '继续游戏';
+          setOverlay('稍作休息', '按 P 或「继续游戏」回到方块之间。', true);
+        } else if (state === 'paused') {
+          state = 'playing';
+          statusEl.textContent = 'PLAYING';
+          setOverlay('', '', false);
+          lastFrame = performance.now();
+        }
+      }
+
+      function finishGame() {
+        state = 'over';
+        active = null;
+        statusEl.textContent = 'GAME OVER';
+        startButton.textContent = '再玩一局';
+        setOverlay('堆到顶了', `本局得分 ${format(score)} · 按 Enter 再来一局`, true);
+        draw();
+      }
+
+      function drop() {
+        if (state !== 'playing') return;
+        let distance = 0;
+        while (!collides(active, 0, 1)) {
+          active.y += 1;
+          distance += 1;
+        }
+        if (distance) addScore(distance * 2);
+        lockPiece();
+      }
+
+      function handleKey(event) {
+        const key = event.key.toLowerCase();
+        const handled = ['arrowleft', 'arrowright', 'arrowdown', 'arrowup', ' ', 'x', 'p', 'enter'];
+        if (!handled.includes(key)) return;
+        event.preventDefault();
+        if (key === 'enter' && (state === 'ready' || state === 'over')) { startGame(); return; }
+        if (key === 'p') { pauseGame(); return; }
+        if (state !== 'playing') return;
+        if (key === 'arrowleft') move(-1, 0);
+        if (key === 'arrowright') move(1, 0);
+        if (key === 'arrowdown') move(0, 1, 1);
+        if (key === 'arrowup' || key === 'x') rotate();
+        if (key === ' ') drop();
+      }
+
+      function animationFrame(now) {
+        const elapsed = Math.min(now - lastFrame, 100);
+        lastFrame = now;
+        if (state === 'playing') {
+          fallTimer += elapsed;
+          const level = Math.floor(lines / 10);
+          const interval = Math.max(85, 720 * Math.pow(.82, level));
+          if (fallTimer >= interval) {
+            fallTimer = 0;
+            if (!move(0, 1)) lockPiece();
+          }
+        }
+        requestAnimationFrame(animationFrame);
+      }
+
+      function bindTouchControls() {
+        const controls = document.querySelectorAll('[data-control]');
+        controls.forEach((button) => {
+          let repeatTimer;
+          const act = () => {
+            const control = button.dataset.control;
+            if (control === 'left') move(-1, 0);
+            if (control === 'right') move(1, 0);
+            if (control === 'down') move(0, 1, 1);
+            if (control === 'rotate') rotate();
+          };
+          button.addEventListener('pointerdown', (event) => {
+            event.preventDefault();
+            act();
+            if (button.dataset.control !== 'rotate') repeatTimer = window.setInterval(act, 95);
+          });
+          ['pointerup', 'pointercancel', 'pointerleave'].forEach((name) => button.addEventListener(name, () => window.clearInterval(repeatTimer)));
+        });
+      }
+
+      bestEl.value = format(best); bestEl.textContent = format(best);
+      grid = blankGrid();
+      queue = [];
+      fillQueue();
+      renderNext();
+      draw();
+      startButton.addEventListener('click', () => {
+        if (state === 'paused') pauseGame();
+        else startGame();
+      });
+      pauseButton.addEventListener('click', pauseGame);
+      restartButton.addEventListener('click', startGame);
+      window.addEventListener('keydown', handleKey);
+      bindTouchControls();
+      requestAnimationFrame(animationFrame);
+    })();
+  </script>
+</body>
+</html>
