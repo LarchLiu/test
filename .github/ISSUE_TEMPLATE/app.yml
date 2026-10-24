@@ -1,0 +1,42 @@
+name: App issue
+description: Report an issue related to the app.
+title: "[App] "
+labels: [app]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for issues related to the app. The `app` label will be added automatically.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clearly describe the issue or request.
+      placeholder: What happened, or what would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: For bugs, list the steps needed to reproduce the issue.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: false
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add screenshots, logs, or other useful context.
+    validations:
+      required: false
